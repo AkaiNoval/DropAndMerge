@@ -22,7 +22,6 @@ public class CubePreview : MonoBehaviour
     void UpdateCubeAppearance(int round)
     {
         currentIndex = startIndex + round;
-        Debug.Log(CubeManager.Instance.GetIncomingCube()[currentIndex]);
         cube.InitCubeType(CubeManager.Instance.GetIncomingCube()[currentIndex].Value);
         if (startIndex==0)
         {

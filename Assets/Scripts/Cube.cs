@@ -85,11 +85,6 @@ public class Cube : MonoBehaviour
                 break;
             case CubeState.Checking:
                 //Check => Change other IDLE to Merging state => Change my value => if i can fall => Check again => NO? = change state to Idle
-                Debug.Log("Checked and yield the result of " + CheckForMerging());
-                if(CheckForMerging()==1)
-                {
-                    newState=CubeState.Idle; //
-                }
                 break;
             case CubeState.Merging:
                 break;
@@ -98,12 +93,17 @@ public class Cube : MonoBehaviour
         }
         currentCubeState = newState;
     }
-
+    void UpdateCubeBasedMergingValue()
+    {
+        int times = CheckForMerging();
+        InitCubeType(Value * CalculateValueBasedOnMergeTime(times));
+    }
     void DoTweenMoveMergingNode(Node targetNode)
     {
         ChangeCubeState(CubeState.Merging);
         node.OccupiedCube = null;
         SetNode(null);
+
         var sequence = DOTween.Sequence();
         sequence.Append(transform.DOMove(targetNode.transform.position, 0.3f).SetEase(Ease.InOutCirc));
         sequence.OnComplete(() => Destroy(gameObject));
