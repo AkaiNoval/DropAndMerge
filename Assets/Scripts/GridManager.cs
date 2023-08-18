@@ -114,6 +114,23 @@ public class GridManager : MonoBehaviour
             }
         }
     }
+
+    public Vector2Int GetNodePosition(Node targetNode)
+    {
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                if (nodes[x, y] == targetNode)
+                {
+                    return new Vector2Int(x, y);
+                }
+            }
+        }
+
+        // Node not found, return an invalid position or handle it as needed
+        return new Vector2Int(-1, -1);
+    }
     //void DropDown()
     //{
     //    var width = GridManager.Instance.Width;

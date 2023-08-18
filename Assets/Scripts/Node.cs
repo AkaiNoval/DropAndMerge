@@ -41,22 +41,22 @@ public class Node : MonoBehaviour
 
         /* Initialize the cube's type based on the incoming cube's value */
         spawnedCube.InitCubeType(value);
-        /* Check if the node can fall down or not*/
-        if (!spawnedCube.CanFallDown())
-        {
-            /* Assign the spawned cube to the highest node */
-            highestNode.OccupiedCube = spawnedCube;
-            /* If it cant fall then we will change its state to checking*/
-            spawnedCube.ChangeCubeState(CubeState.Checking);
-        }
-        else
+        /* Check if the cube can fall down or not*/
+        if (spawnedCube.CanFallDown())
         {
             /* If it falls then we will change its state to falling*/
             spawnedCube.ChangeCubeState(CubeState.Falling);
+            Debug.Log("I'm falling");
         }
-
-        
-        
+        else
+        {
+            /* Assign the spawned cube to the highest node */
+            highestNode.OccupiedCube = spawnedCube;
+            spawnedCube.SetNode(highestNode);
+            /* If it cant fall then we will change its state to checking*/
+            spawnedCube.ChangeCubeState(CubeState.Checking);
+            Debug.Log("Look like i can spawn on the top if this column");
+        }       
     }
 
     /* Check if it's possible to spawn a cube at the highest node */

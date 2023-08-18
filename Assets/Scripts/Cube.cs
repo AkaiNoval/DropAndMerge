@@ -15,7 +15,7 @@ public class Cube : MonoBehaviour
 {
     [SerializeField] private int value;
     [SerializeField] private CubeState currentCubeState;
-
+    [SerializeField] private Node node;
     private MeshRenderer meshRenderer;
     private TextMeshPro textMeshPro; 
     public int Value
@@ -26,6 +26,7 @@ public class Cube : MonoBehaviour
             this.value = value;
         }
     }
+
 
     private void Awake()
     {
@@ -52,7 +53,7 @@ public class Cube : MonoBehaviour
             this.Value = value;
         }
     }
-    private CubeType FindCubeTypeBasedOnValue(int value) => CubeManager.Instance.AllCubeTypes.Find(cubeType => cubeType.Value == value);
+    CubeType FindCubeTypeBasedOnValue(int value) => CubeManager.Instance.AllCubeTypes.Find(cubeType => cubeType.Value == value);
     public bool CanFallDown()
     {
         Node lowestNode = GridManager.Instance.GetLowestFreeNodeInColumn((int)transform.position.x);
@@ -60,12 +61,20 @@ public class Cube : MonoBehaviour
         {
             transform.DOMoveY(lowestNode.transform.position.y, 0.3f)
                 .SetEase(Ease.InCirc)
-                .OnComplete(() => lowestNode.OccupiedCube = this);
+                .OnComplete(() =>
+                {
+                    lowestNode.OccupiedCube = this;
+                    SetNode(lowestNode);
+                    ChangeCubeState(CubeState.Checking);
+                });
             return true;
         }
         return false;
     }
-
+    public void SetNode(Node newNode)
+    {
+        this.node = newNode;
+    }
     public void ChangeCubeState(CubeState newState)
     {
         switch (newState)
@@ -75,6 +84,12 @@ public class Cube : MonoBehaviour
             case CubeState.Falling:
                 break;
             case CubeState.Checking:
+                //Check => Change other IDLE to Merging state => Change my value => if i can fall => Check again => NO? = change state to Idle
+                Debug.Log("Checked and yield the result of " + CheckForMerging());
+                if(CheckForMerging()==1)
+                {
+                    newState=CubeState.Idle; //
+                }
                 break;
             case CubeState.Merging:
                 break;
@@ -83,9 +98,17 @@ public class Cube : MonoBehaviour
         }
         currentCubeState = newState;
     }
-    int CalculateValueBasedOnMergeTime(int times) => times <= 4 ? 1 << (times - 1) : 1;
 
-    int CheckForMerging(Cube occupiedCube, int posX, int posY)
+    void DoTweenMoveMergingNode(Node targetNode)
+    {
+        ChangeCubeState(CubeState.Merging);
+        node.OccupiedCube = null;
+        SetNode(null);
+        var sequence = DOTween.Sequence();
+        sequence.Append(transform.DOMove(targetNode.transform.position, 0.3f).SetEase(Ease.InOutCirc));
+        sequence.OnComplete(() => Destroy(gameObject));
+    }
+    int CheckForMerging()
     {
         /* Get the 2D array of nodes from the grid manager */
         var nodeArray = GridManager.Instance.GetNodes();
@@ -93,57 +116,58 @@ public class Cube : MonoBehaviour
         /* Get the height and width of the grid */
         var Height = GridManager.Instance.Height;
         var Width = GridManager.Instance.Width;
-
-        /* Counter to track the number of same blocks for merging */
+        /* Counter to track the number of same cube for merging */
         int sameCube = 1;
-
         /* Function to check if two blocks can be merged */
-        bool CanMerge(Cube otherCube) => otherCube != null && otherCube.Value == occupiedCube.Value;
+        bool CanMerge(Cube otherCube) => otherCube != null && otherCube.Value == this.Value;
 
-        /* Check for merging with neighboring blocks */
+        int nodePosX = GridManager.Instance.GetNodePosition(node).x;
+        int nodePosY = GridManager.Instance.GetNodePosition(node).y;
         /* Check above */
-        if (posY > 0)
+        /* Sidenode, looks like there are absolutely no chance of "above" to happen*/
+        if (nodePosY  > 0)
         {
-            if (CanMerge(nodeArray[posX, posY - 1].OccupiedCube))
+            Cube aboveCube = nodeArray[nodePosX, nodePosY - 1].OccupiedCube;
+            if (CanMerge(aboveCube))
             {
-
+                aboveCube.DoTweenMoveMergingNode(node);
                 sameCube++;
             }
-
         }
-
         /* Check below */
-        if (posY < Height - 1)
+        if (nodePosY < Height - 1)
         {
-            if (CanMerge(nodeArray[posX, posY + 1].OccupiedCube))
+            Cube belowCube = nodeArray[nodePosX, nodePosY + 1].OccupiedCube;
+            if (CanMerge(belowCube))
             {
+                belowCube.DoTweenMoveMergingNode(node);
                 sameCube++;
             }
-
         }
 
         /* Check left */
-        if (posX > 0)
+        if (nodePosX > 0)
         {
-            if (CanMerge(nodeArray[posX - 1, posY].OccupiedCube))
+            Cube leftNode = nodeArray[nodePosX - 1, nodePosY].OccupiedCube;
+            if (CanMerge(leftNode))
             {
+                leftNode.DoTweenMoveMergingNode(node);
                 sameCube++;
             }
-
         }
 
         /* Check right */
-        if (posX < Width - 1)
+        if (nodePosX < Width - 1)
         {
-            if (CanMerge(nodeArray[posX + 1, posY].OccupiedCube))
+            Cube rightNode = nodeArray[nodePosX + 1, nodePosY].OccupiedCube;
+            if (CanMerge(rightNode))
             {
+                rightNode.DoTweenMoveMergingNode(node);
                 sameCube++;
             }
-
         }
-
         /* Return true if at least two same blocks are found for merging */
         return sameCube;
     }
-
+    int CalculateValueBasedOnMergeTime(int times) => times <= 4 ? 1 << (times - 1) : 1;
 }
