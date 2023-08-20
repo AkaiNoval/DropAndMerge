@@ -9,7 +9,6 @@ public enum GameState
 {
     GenerateScene,
     WaitingForInput,
-    Falling,
     Merging,
     Win,
     Lose
@@ -20,7 +19,7 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get => instance; private set => instance = value; }
     public static event Action<int> OnRoundChange;
     [SerializeField ] private int round;
-    [SerializeField] GameState currentState;
+    public GameState CurrentState;
     public int Round 
     { 
         get => round;
@@ -47,10 +46,6 @@ public class GameManager : MonoBehaviour
     {
         ChanceState(GameState.GenerateScene);
     }
-    public void IncreaseRoundTesting()
-    {
-        Round++;
-    }
     public void ChanceState(GameState newState)
     {
         switch (newState)
@@ -59,13 +54,16 @@ public class GameManager : MonoBehaviour
                 GridManager.Instance.GenerateGrid();
                 CubeManager.Instance.InitPreviewCubes();
                 Round = 0;
+                newState = GameState.WaitingForInput;
                 break;
             case GameState.WaitingForInput:
+                if (CheckGameOver())
+                {
+                    newState = GameState.Lose;
+                }
                 break;
             case GameState.Merging:
                 break;            
-            case GameState.Falling:
-                break;
             case GameState.Win:
                 break;
             case GameState.Lose:
@@ -73,6 +71,23 @@ public class GameManager : MonoBehaviour
             default:
                 break;
         }
-        currentState = newState;
+        CurrentState = newState;
+    }
+
+    bool CheckGameOver()
+    {
+        var nodes = GridManager.Instance.GetNodes();
+        int gridWidth = GridManager.Instance.Width; // Assuming your grid width is 5
+        int gridHeight = GridManager.Instance.Height;
+        int value = CubeManager.Instance.GetIncomingCube()[Round].Value;
+        for (int x = 0; x < gridWidth; x++)
+        {
+            Node highestNode = nodes[x, gridHeight - 1]; // Get the node at the top row and current column
+            if (highestNode.OccupiedCube == null) return false;
+            /* If 1 of 5 column have the same value of the current cube, its not GAMEOVER */
+            if (highestNode.OccupiedCube.Value == value) return false;
+        }
+        return true;
+        
     }
 }

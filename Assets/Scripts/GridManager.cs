@@ -91,7 +91,7 @@ public class GridManager : MonoBehaviour
     public Node GetLowestFreeNodeInColumn(int column)
     {
         Node lowestNode = null;
-        for (int y = Height-1; y >= 0; y--)
+        for (int y = Height - 1; y >= 0; y--)
         {
             if (!nodes[column, y].OccupiedCube)
             {
@@ -103,16 +103,34 @@ public class GridManager : MonoBehaviour
 
     public void AllDropDown()
     {
-        for(int x=0;x <Width; x++)
+        Node.DelaySpammingTime?.Invoke();
+        Debug.Log("Start dropping down");
+        for (int x = 0; x < Width; x++)
         {
-            for(int y=1; x< Height; y++)
+            for (int y = 1; y < Height; y++)
             {
-                if (nodes[x,y].OccupiedCube)
+                if (nodes[x, y].OccupiedCube)
                 {
-
+                    int targetHeightToDrop = y;
+                    while (targetHeightToDrop - 1 >= 0 && !nodes[x, targetHeightToDrop - 1].OccupiedCube)
+                    {
+                        targetHeightToDrop--;
+                    }
+                    if (targetHeightToDrop != y)
+                    {
+                        /* Store a cube that should move */
+                        Cube cubeToMove = nodes[x, y].OccupiedCube;
+                        cubeToMove.DoTweenMoveToAnotherNode(nodes[x, targetHeightToDrop]);
+                        break;
+                    }
+                    else
+                    {
+                        GameManager.Instance.ChanceState(GameState.WaitingForInput);
+                    }
                 }
             }
         }
+        Debug.Log(" dropping down");
     }
 
     public Vector2Int GetNodePosition(Node targetNode)
@@ -131,39 +149,4 @@ public class GridManager : MonoBehaviour
         // Node not found, return an invalid position or handle it as needed
         return new Vector2Int(-1, -1);
     }
-    //void DropDown()
-    //{
-    //    var width = GridManager.Instance.Width;
-    //    var height = GridManager.Instance.Height;
-    //    var nodes = GridManager.Instance.GetNodes();
-    //    for (int x = 0; x < width; x++)
-    //    {
-    //        // Start from the second bottom row and go upwards
-    //        for (int y = 1; y < height; y++)
-    //        {
-    //            if (nodes[x, y].OccupiedCube)
-    //            {
-    //                int targetY = y; //1
-
-    //                while (targetY - 1 >= 0 && !nodes[x, targetY - 1].OccupiedCube)
-    //                {
-    //                    targetY--; //0
-    //                }
-    //                if (targetY != y)
-    //                {
-    //                    Cube cubeToMove = nodes[x, y].OccupiedCube;
-
-    //                    // Set the target node's occupied block and trigger animation
-    //                    nodes[x, targetY].OccupiedCube = cubeToMove;
-    //                    //StartCoroutine(movingBlock.Animate(movingBlock, nodes[x, targetY]));
-
-    //                    // Clear the current node's occupied block
-    //                    nodes[x, y].OccupiedCube = null;
-
-    //                    Debug.Log("Im " + nodes[x, y].name + " I just move down to" + nodes[x, targetY].name);
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
 }

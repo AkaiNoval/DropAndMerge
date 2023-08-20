@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
 using TMPro;
+using UnityEditor.Experimental.GraphView;
 
 public enum CubeState
 {
@@ -15,7 +16,7 @@ public class Cube : MonoBehaviour
 {
     [SerializeField] private int value;
     [SerializeField] private CubeState currentCubeState;
-    [SerializeField] private Node node;
+    [SerializeField] private Node cubeNode;
     private MeshRenderer meshRenderer;
     private TextMeshPro textMeshPro; 
     public int Value
@@ -71,44 +72,83 @@ public class Cube : MonoBehaviour
         }
         return false;
     }
-    public void SetNode(Node newNode)
-    {
-        this.node = newNode;
-    }
+    public void SetNode(Node newNode) => this.cubeNode = newNode;
+
     public void ChangeCubeState(CubeState newState)
     {
         switch (newState)
         {
             case CubeState.Idle:
+                GameManager.Instance.ChanceState(GameState.WaitingForInput);
                 break;
             case CubeState.Falling:
+                GameManager.Instance.ChanceState(GameState.Merging);
                 break;
             case CubeState.Checking:
+                GameManager.Instance.ChanceState(GameState.Merging);
+                UpdateCubeBasedOnMergingValue();
                 //Check => Change other IDLE to Merging state => Change my value => if i can fall => Check again => NO? = change state to Idle
                 break;
             case CubeState.Merging:
+                GameManager.Instance.ChanceState(GameState.Merging);
                 break;
             default:
                 break;
         }
         currentCubeState = newState;
     }
-    void UpdateCubeBasedMergingValue()
+    void UpdateCubeBasedOnMergingValue()
     {
-        int times = CheckForMerging();
-        InitCubeType(Value * CalculateValueBasedOnMergeTime(times));
+        int times = CheckForMerging(true);
+        int newValue = Value * CalculateValueBasedOnMergeTime(times);
+        InitCubeType(newValue);
+        var sequence1 = DOTween.Sequence();
+        sequence1.Append(transform.DOScale(transform.localScale + new Vector3(0.3f, 0.3f, 0.3f), 0.15f));
+        sequence1.Append(transform.DOScale(transform.localScale, 0.1f).SetEase(Ease.OutSine));
+        sequence1.OnComplete(() => 
+        {
+            Node lowestNode = GridManager.Instance.GetLowestFreeNodeInColumn((int)transform.position.x);
+            if (lowestNode.transform.position.y >= transform.position.y)
+            {
+                if (CheckForMerging(false) != 1)
+                {
+                    ChangeCubeState(CubeState.Checking);
+                }
+            }
+            GridManager.Instance.AllDropDown();
+        });
+        GameManager.Instance.ChanceState(GameState.WaitingForInput);
     }
     void DoTweenMoveMergingNode(Node targetNode)
     {
         ChangeCubeState(CubeState.Merging);
-        node.OccupiedCube = null;
+        cubeNode.OccupiedCube = null;
         SetNode(null);
-
+        Node.DelaySpammingTime?.Invoke();
         var sequence = DOTween.Sequence();
-        sequence.Append(transform.DOMove(targetNode.transform.position, 0.3f).SetEase(Ease.InOutCirc));
+        sequence.Append(transform.DOMove(targetNode.transform.position, 0.2f).SetEase(Ease.InOutCirc));
         sequence.OnComplete(() => Destroy(gameObject));
     }
-    int CheckForMerging()
+    public void DoTweenMoveToAnotherNode(Node targetNode)
+    {
+        ChangeCubeState(CubeState.Falling);
+        /* Clear the current node you are sitting on */
+        cubeNode.OccupiedCube = null;
+        /* Set the target nodes cube to this */
+        var sequence = DOTween.Sequence();
+        sequence.Append(transform.DOMove(targetNode.transform.position, 0.2f).SetEase(Ease.OutQuad));
+        /* for the cube that moved check for merging again*/
+        cubeNode = targetNode;
+        targetNode.OccupiedCube = this;
+        sequence.OnComplete(() =>
+        {
+            ChangeCubeState(CubeState.Idle);
+            GridManager.Instance.AllDropDown();
+            if (CheckForMerging(false) == 1) return;
+            ChangeCubeState(CubeState.Checking);
+        });
+    }
+    int CheckForMerging(bool shouldMergeNeighbourCube)
     {
         /* Get the 2D array of nodes from the grid manager */
         var nodeArray = GridManager.Instance.GetNodes();
@@ -118,11 +158,16 @@ public class Cube : MonoBehaviour
         var Width = GridManager.Instance.Width;
         /* Counter to track the number of same cube for merging */
         int sameCube = 1;
-        /* Function to check if two blocks can be merged */
+        /* Function to check if two cubes can be merged */
         bool CanMerge(Cube otherCube) => otherCube != null && otherCube.Value == this.Value;
-
-        int nodePosX = GridManager.Instance.GetNodePosition(node).x;
-        int nodePosY = GridManager.Instance.GetNodePosition(node).y;
+        /* Function to merging neighbourCube */
+        void MergeNeighbourCube(Cube neighbourCube)
+        {
+            if (!shouldMergeNeighbourCube) return;
+            neighbourCube.DoTweenMoveMergingNode(cubeNode);
+        }
+        int nodePosX = GridManager.Instance.GetNodePosition(cubeNode).x;
+        int nodePosY = GridManager.Instance.GetNodePosition(cubeNode).y;
         /* Check above */
         /* Sidenode, looks like there are absolutely no chance of "above" to happen*/
         if (nodePosY  > 0)
@@ -130,7 +175,7 @@ public class Cube : MonoBehaviour
             Cube aboveCube = nodeArray[nodePosX, nodePosY - 1].OccupiedCube;
             if (CanMerge(aboveCube))
             {
-                aboveCube.DoTweenMoveMergingNode(node);
+                MergeNeighbourCube(aboveCube);
                 sameCube++;
             }
         }
@@ -140,7 +185,7 @@ public class Cube : MonoBehaviour
             Cube belowCube = nodeArray[nodePosX, nodePosY + 1].OccupiedCube;
             if (CanMerge(belowCube))
             {
-                belowCube.DoTweenMoveMergingNode(node);
+                MergeNeighbourCube(belowCube);
                 sameCube++;
             }
         }
@@ -151,7 +196,7 @@ public class Cube : MonoBehaviour
             Cube leftNode = nodeArray[nodePosX - 1, nodePosY].OccupiedCube;
             if (CanMerge(leftNode))
             {
-                leftNode.DoTweenMoveMergingNode(node);
+                MergeNeighbourCube(leftNode);
                 sameCube++;
             }
         }
@@ -162,7 +207,7 @@ public class Cube : MonoBehaviour
             Cube rightNode = nodeArray[nodePosX + 1, nodePosY].OccupiedCube;
             if (CanMerge(rightNode))
             {
-                rightNode.DoTweenMoveMergingNode(node);
+                MergeNeighbourCube(rightNode);
                 sameCube++;
             }
         }
